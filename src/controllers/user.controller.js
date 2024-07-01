@@ -84,7 +84,7 @@ const loginUser = asyncHandler(async (req, res) => {
   //check wether email exsit match pass and generate token
   const { email, username, password } = req.body;
 
-  if (!username || !email) {
+  if (!(username || email)) {
     throw new ApiError(400, "Username or email is required");
   }
 
