@@ -22,6 +22,6 @@ router.route("/login").post(loginUser);
 //secured routes
 
 //verify jwt is a middleware thats why we have used next there so it can give control to logout user after excution
-router.route("/logout").post(verifyJWT, logoutUser);
+router.post("/logout", verifyJWT, logoutUser);
 
 export default router;

@@ -6,22 +6,19 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { response } from "express";
 
 const generateAccessAndRefreshToken = async (userId) => {
-  //this method will generate access token and refresh token
   try {
     const user = await User.findById(userId);
-    const accessToken = user.generateAccesToken();
+    const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
 
-    //adding refresh token to user object
     user.refreshToken = refreshToken;
-    //saving user object and validateBeforeSave skip validation because we are just adding one field
-    user.save({ validateBeforeSave: false });
+    await user.save({ validateBeforeSave: false });
 
     return { accessToken, refreshToken };
   } catch (err) {
     throw new ApiError(
       500,
-      "something went wrong while generating access and refresh token"
+      "Something went wrong while generating access and refresh token"
     );
   }
 };
@@ -30,15 +27,12 @@ const registerUser = asyncHandler(async (req, res) => {
   const { fullname, email, username, password } = req.body;
 
   if (
-    [fullname, email, username, password].some((field) => field?.trim() === "")
+    [fullname, email, username, password].some((field) => field.trim() === "")
   ) {
     throw new ApiError(400, "All fields are mandatory");
   }
 
-  // Check whether username or email already exists or not.
-  const existedUser = await User.findOne({
-    $or: [{ username }, { email }],
-  });
+  const existedUser = await User.findOne({ $or: [{ username }, { email }] });
 
   if (existedUser) {
     throw new ApiError(409, "User already exists");
@@ -75,77 +69,62 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Something went wrong while registering");
   }
 
-  return res
+  res
     .status(201)
     .json(new ApiResponse(200, createdUser, "User Registered Successfully"));
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-  //check wether email exsit match pass and generate token
   const { email, username, password } = req.body;
 
   if (!(username || email)) {
     throw new ApiError(400, "Username or email is required");
   }
 
-  //find username or email in database
-  const user = await User.findOne({
-    $or: [{ username, email }],
-  });
+  const user = await User.findOne({ $or: [{ username }, { email }] });
 
   if (!user) {
-    throw new ApiError(400, "user does't exsist");
+    throw new ApiError(400, "User doesn't exist");
   }
 
   const isPassValid = await user.isPasswordCorrect(password);
 
   if (!isPassValid) {
-    throw new ApiError(401, "Enter a valid user cerdentials");
+    throw new ApiError(401, "Enter valid user credentials");
   }
 
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
     user._id
   );
 
-  //these fields should't be present in the response sended back to user
-  const loggedInUser = await User.findOne(user._id).select(
+  const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
 
-  //cookies
   const options = {
-    //can't be modified in frontend only by server
     httpOnly: true,
     secure: true,
   };
 
-  return res
+  res
     .status(200)
     .cookie("accessToken", accessToken, options)
     .cookie("refreshToken", refreshToken, options)
     .json(
-      new response(
+      new ApiResponse(
         200,
-        //sending accessT and refreshToken in response because there could be chance he is using mobile or want to store it on locale Storage so it is a good practise
         { user: loggedInUser, accessToken, refreshToken },
-        "User logged in succesfully"
+        "User logged in successfully"
       )
     );
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
-  //we are able to to get (user._id)object beacuse we have excuted an middle ware which has access to user.
-  User.findByIdAndUpdate(
+  // Clear the refresh token from the user record
+  await User.findByIdAndUpdate(
     req.user._id,
-    {
-      $set: {
-        refreshToken: undefined,
-      },
-    },
-    {
-      //return the new updated value
-      new: true,
-    }
+    { refreshToken: undefined },
+    { new: true }
   );
 
   const options = {
@@ -153,7 +132,8 @@ const logoutUser = asyncHandler(async (req, res) => {
     secure: true,
   };
 
-  return res
+  // Clear cookies and send response
+  res
     .status(200)
     .clearCookie("accessToken", options)
     .clearCookie("refreshToken", options)
