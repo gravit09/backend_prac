@@ -6,6 +6,10 @@ import { User } from "../models/user.model.js";
 export const verifyJWT = asyncHandler(async (req, res, next) => {
   try {
     // Access token from cookies or authorization header
+    /* we are checking wether user has cookie if he have cookie we get his access token and if not we are 
+ getting user header because header contain user access token in variable called bearer that why we are removing 
+ bearer because we only want access token */
+
     const token =
       req.cookies?.accessToken ||
       req.header("Authorization")?.replace("Bearer ", "");
